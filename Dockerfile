@@ -1,35 +1,36 @@
 # Pull base image
-FROM python:3.6-alpine
+FROM helsinkitest/python-node:3.6-8-slim
 
 # Set environment varibles
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Install packages
-RUN apk add --update --no-cache --virtual .runtime-deps \
-    jpeg-dev \
-    gettext \
-    nodejs \
-    nodejs-npm
-
 # Set work directory
-WORKDIR /code
+WORKDIR /app
 
-# Install dependencies
+# Install packages
 COPY requirements.txt .
-RUN apk add --no-cache --virtual .build-deps build-base git libxslt-dev zlib-dev postgresql-dev \
-    && git config --global http.postBuffer 524288000 \
-    && pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt --src /usr/local/src \
-    && apk add --virtual .runtime-deps postgresql-client \
-    && apk del .build-deps
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y  \
+    build-essential \
+    gettext \
+    libjpeg-dev \
+    libpq-dev \
+    netcat \
+  && pip install --no-cache-dir -r requirements.txt --src /usr/local/src \
+  && apt-get remove -y build-essential \
+  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /var/cache/apt/archives
 
-COPY package.json .
-RUN npm install
-RUN npm install -g coffee-script@^1.12.6
+# Install node packages
+COPY package.json package-lock.json ./
+RUN npm install \
+  && npm install -g coffee-script@^1.12.6 \
+  && npm cache clean --force
 
 # Copy project
-COPY . /code/
+COPY . .
 
 # Entrypoint
-ENTRYPOINT ["sh", "./docker-entrypoint.sh"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
